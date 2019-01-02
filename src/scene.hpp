@@ -13,5 +13,6 @@ public:
     void updateParameters(float deltaT, float elapsedT);
     void commitParameters(void* buffer, quint64 max) const;
 private:
+    quint32 verticalFOV, viewWidth, viewHeight, clipDistance;
     QMatrix4x4 projection, view;
 };

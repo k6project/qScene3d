@@ -4,8 +4,6 @@
 #include <QWidget>
 #include <QApplication>
 
-#include "Windows.h"
-
 int main(int argc, char* argv[])
 {
     Scene scene;
@@ -19,7 +17,6 @@ int main(int argc, char* argv[])
     QWidget mainWidget;
     mainWidget.resize(512, 512);
     mainWidget.show();
-    if (IsWindow(reinterpret_cast<HWND>(mainWidget.winId())))
-        return app.exec();
-    return -1;
+    //if (IsWindow(reinterpret_cast<HWND>(mainWidget.winId())))
+    return app.exec();
 }

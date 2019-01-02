@@ -12,6 +12,7 @@ TARGET = qScene3d
 TEMPLATE = app
 
 win32:INCLUDEPATH += $$VULKAN_SDK
+macx:INCLUDEPATH += ../../vulkan/1.1.82/macOS/include
 win32:LIBS += user32.lib
 
 # The following define makes your compiler emit warnings if you use

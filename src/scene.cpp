@@ -11,7 +11,10 @@ void Scene::setCamera(const QVector3D &eye, const QVector3D &target, const QVect
 void Scene::updateParameters(float /*deltaT*/, float /*elapsedT*/)
 {
     projection.setToIdentity();
-    projection.perspective(30.f, 1.f, 0.01f, 1000.f);
+    float aspectRatio = viewWidth / static_cast<float>(viewHeight);
+    projection.perspective(verticalFOV, aspectRatio, 0.01f, clipDistance + 0.01f);
+    //node0(node01(node011,node012),node0(node02)
+    //apply parent transform to child, for each sub-child apply current transform
 }
 
 static void alignToBlock(quintptr& offset)
