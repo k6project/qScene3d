@@ -31,7 +31,8 @@ CONFIG += c++11
 SOURCES += \
         main.cpp \
     scene.cpp \
-    qvulkan.cpp
+    qvulkan.cpp \
+    memory.cpp
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -40,4 +41,5 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 HEADERS += \
     scene.hpp \
-    qvulkan.hpp
+    qvulkan.hpp \
+    memory.hpp

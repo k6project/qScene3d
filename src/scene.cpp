@@ -2,6 +2,15 @@
 
 #include <QtGlobal>
 
+class Scene::Node
+{
+    friend class Scene;
+    friend class SceneNode;
+    QMatrix4x4 transform;
+    QVector3D position, scale;
+    QQuaternion rotation;
+};
+
 void Scene::setCamera(const QVector3D &eye, const QVector3D &target, const QVector3D &up)
 {
     view.setToIdentity();
@@ -13,8 +22,11 @@ void Scene::updateParameters(float /*deltaT*/, float /*elapsedT*/)
     projection.setToIdentity();
     float aspectRatio = viewWidth / static_cast<float>(viewHeight);
     projection.perspective(verticalFOV, aspectRatio, 0.01f, clipDistance + 0.01f);
-    //node0(node01(node011,node012),node0(node02)
-    //apply parent transform to child, for each sub-child apply current transform
+    for (quint64 i = 0; i < numNodes; i++)
+    {
+        Node& node = nodes[i];
+        node.transform.setToIdentity();
+    }
 }
 
 static void alignToBlock(quintptr& offset)
@@ -38,4 +50,9 @@ void Scene::commitParameters(void* buffer, quint64 max) const
     commitMatrix(bytes, offset, max, projection);
     commitMatrix(bytes, offset, max, view);
     alignToBlock(offset);
+}
+
+void SceneNode::setRotation(const QVector3D &eulerAngles) const
+{
+    node->rotation.fromEulerAngles(eulerAngles);
 }
