@@ -29,5 +29,8 @@ public:
     void createBuffer(QVkBuffer::ContentType contentType, QVkBuffer::AccessType accessType, quint32 size);
     void mapBuffer(QVkBuffer& buffer) const;
 protected:
+    //memory allocator for vertex/index
+    //memory allocator for uniform
+    //memory allocator for textures
     VkDevice device;
 };

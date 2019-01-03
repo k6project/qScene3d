@@ -1,15 +1,24 @@
 #pragma once
 
+#ifdef USE_QT_INTTYPES
 #include <QtGlobal>
+typedef quint32 memsize_t;
+typedef quint8  membyte_t;
+#else
+#include <cstdint>
+typedef uint32_t memsize_t;
+typedef uint8_t  membyte_t;
+#endif
 
-class MemAlloc
+class MemBlock
 {
 public:
-    //
-    void* allocLinear(quint64 size);
-    void* allocStack(quint64 size);
-    void* allocHeap(quint64 size);
-    template <typename T> T* allocLinear() { return static_cast<T*>(allocLinear(sizeof(T))); }
-    template <typename T> T* allocStack() { return static_cast<T*>(allocStack(sizeof(T))); }
-    template <typename T> T* allocHeap() { return static_cast<T*>(allocHeap(sizeof(T))); }
+    void init(memsize_t capacity, memsize_t alignment = 16);
+    memsize_t alloc(memsize_t bytes);
+    void* allocPtr(memsize_t bytes, void* base);
+    template <typename T> T* allocPtr(void* base) { return static_cast<T*>(allocPtr(sizeof(T), base)); }
+    void free(memsize_t offset);
+private:
+    memsize_t max = 0, current = 0;
+    memsize_t align;
 };

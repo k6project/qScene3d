@@ -9,6 +9,9 @@ int main(int argc, char* argv[])
     Scene scene;
     QVkInstance vkInstance;
     scene.setCamera({0.f, 0.f, 20.f}, {0.f, 0.f, 0.f}, {0.f, 1.f, 0.f});
+    //SceneNode cube = scene.addNode("SpinningCube")
+    //    .setMesh(...)
+    //    .addAnimation(...);
     //scene.updateParameters(0.f, 0.f);
     //device.mapBuffer(pBuff);
     //scene.commitParameters(pBuff.ptr(), pBuff.max());
