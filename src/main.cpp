@@ -8,6 +8,7 @@ int main(int argc, char* argv[])
 {
     Scene scene;
     QVkInstance vkInstance;
+    QApplication app(argc, argv);
     scene.setCamera({0.f, 0.f, 20.f}, {0.f, 0.f, 0.f}, {0.f, 1.f, 0.f});
     //SceneNode cube = scene.addNode("SpinningCube")
     //    .setMesh(...)
@@ -16,7 +17,6 @@ int main(int argc, char* argv[])
     //device.mapBuffer(pBuff);
     //scene.commitParameters(pBuff.ptr(), pBuff.max());
     vkInstance.create();
-    QApplication app(argc, argv);
     QWidget mainWidget;
     mainWidget.resize(512, 512);
     mainWidget.show();

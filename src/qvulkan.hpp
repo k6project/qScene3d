@@ -12,7 +12,7 @@ struct QVkBuffer
     VkBuffer buffer;
     VkDeviceMemory memory;
     quint32 offset, size;
-    void* mappedPtr;
+    void* ptr;
 };
 
 class QVkInstance
@@ -26,8 +26,11 @@ protected:
 class QVkDevice
 {
 public:
+    enum class Type { ALLROUNDER, GRAPHICS, COMPUTE };
+    void create(Type type = QVkDevice::Type::ALLROUNDER);
     void createBuffer(QVkBuffer::ContentType contentType, QVkBuffer::AccessType accessType, quint32 size);
     void mapBuffer(QVkBuffer& buffer) const;
+    void destroy();
 protected:
     //memory allocator for vertex/index
     //memory allocator for uniform
