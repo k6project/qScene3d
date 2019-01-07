@@ -6,20 +6,15 @@
 
 int main(int argc, char* argv[])
 {
-    Scene scene;
     QVkInstance vkInstance;
+    QVkDevice device;
     QApplication app(argc, argv);
-    scene.setCamera({0.f, 0.f, 20.f}, {0.f, 0.f, 0.f}, {0.f, 1.f, 0.f});
-    //SceneNode cube = scene.addNode("SpinningCube")
-    //    .setMesh(...)
-    //    .addAnimation(...);
-    //scene.updateParameters(0.f, 0.f);
-    //device.mapBuffer(pBuff);
-    //scene.commitParameters(pBuff.ptr(), pBuff.max());
-    vkInstance.create();
     QWidget mainWidget;
     mainWidget.resize(512, 512);
+    vkInstance.create();
+    device.create(vkInstance, QVkDevice::Type::COMPUTE);
     mainWidget.show();
-    //if (IsWindow(reinterpret_cast<HWND>(mainWidget.winId())))
-    return app.exec();
+    int retval = app.exec();
+    vkInstance.destroy();
+    return retval;
 }

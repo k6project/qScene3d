@@ -34,7 +34,8 @@ SOURCES += \
         main.cpp \
     scene.cpp \
     qvulkan.cpp \
-    memory.cpp
+    memory.cpp \
+    qvulkan.inl
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
