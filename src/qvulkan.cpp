@@ -50,8 +50,25 @@ void QVkInstance::create()
 
 void QVkInstance::destroy()
 {
+    if (surface)
+    {
+        vkDestroySurfaceKHR(instance, surface, nullptr);
+    }
     vkDestroyInstance(instance, nullptr);
     library.unload();
+}
+
+void QVkInstance::setDisplayWidget(QWidget *widget)
+{
+    Q_ASSERT(instance);
+    VkWin32SurfaceCreateInfoKHR info = {};
+    info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    info.hwnd =  reinterpret_cast<HWND>(widget->winId());
+    info.hinstance = GetModuleHandle(nullptr);
+    if (vkCreateWin32SurfaceKHR(instance, &info, nullptr, &surface) != VK_SUCCESS)
+    {
+        QMessageBox::critical(nullptr, "Vulkan error", "Failed to create Vulkan surface");
+    }
 }
 
 void QVkInstance::adapters(QVector<VkPhysicalDevice> &list)
@@ -80,12 +97,17 @@ void QVkDevice::create(QVkInstance& instance, QVkDevice::Type type)
     }
     else
     {
-
+        //
     }
 }
 
 void QVkDevice::createBuffer(QVkBuffer::ContentType contentType, QVkBuffer::AccessType accessType, quint32 size)
 {}
+
+void QVkDevice::destroy()
+{
+    //
+}
 
 bool QVkDevice::selectAdapter(QVkInstance &instance, QVkDevice::Type type)
 {
@@ -100,9 +122,11 @@ bool QVkDevice::selectAdapter(QVkInstance &instance, QVkDevice::Type type)
     else for (VkPhysicalDevice adapter : adapters)
     {
         instance.adapterInfo(adapter, properties, features, memoryProperties);
+        //pick queue layout based on device properties
         if (type == QVkDevice::Type::GRAPHICS || type == QVkDevice::Type::UNIVERSAL)
         {
-            //check if can present
+            //VkBool32 presentSupport = false;
+            //vkGetPhysicalDeviceSurfaceSupportKHR(adapter, i, surface, &presentSupport);
         }
         if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
         {

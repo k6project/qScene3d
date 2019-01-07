@@ -14,6 +14,7 @@ int main(int argc, char* argv[])
     vkInstance.create();
     device.create(vkInstance, QVkDevice::Type::COMPUTE);
     mainWidget.show();
+    vkInstance.setDisplayWidget(&mainWidget);
     int retval = app.exec();
     vkInstance.destroy();
     return retval;

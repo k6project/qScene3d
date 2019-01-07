@@ -4,6 +4,7 @@
 #include <QVector>
 #include <QLibrary>
 
+class QWidget;
 
 #define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_WIN32_KHR
@@ -24,6 +25,7 @@ class QVkInstance
 public:
     void create();
     void destroy();
+    void setDisplayWidget(QWidget* widget);
     void adapters(QVector<VkPhysicalDevice>& list);
     void adapterInfo(VkPhysicalDevice adapter,
                      VkPhysicalDeviceProperties& properties,
@@ -33,9 +35,10 @@ protected:
     #define VULKAN_API_GOBAL(proc) PFN_vk ## proc vk ## proc = nullptr;
     #define VULKAN_API_INSTANCE(proc) PFN_vk ## proc vk ## proc = nullptr;
     #include "qvulkan.inl"
-    PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
+    PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = nullptr;
     QVector<const char*> layers, extensions;
-    VkInstance instance;
+    VkInstance instance = nullptr;
+    VkSurfaceKHR surface = nullptr;
     QLibrary library;
 };
 
