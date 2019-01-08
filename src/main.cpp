@@ -1,4 +1,5 @@
 #include "scene.hpp"
+#include "window.hpp"
 #include "qvulkan.hpp"
 
 #include <QWidget>
@@ -6,16 +7,16 @@
 
 int main(int argc, char* argv[])
 {
-    QVkInstance vkInstance;
     QVkDevice device;
+    QVkInstance instance;
     QApplication app(argc, argv);
-    QWidget mainWidget;
-    mainWidget.resize(512, 512);
-    vkInstance.create();
-    device.create(vkInstance, QVkDevice::Type::COMPUTE);
-    mainWidget.show();
-    vkInstance.setDisplayWidget(&mainWidget);
-    int retval = app.exec();
-    vkInstance.destroy();
+    instance.create();
+    Window mainWindow(instance, device);
+    mainWindow.showMaximized();
+    instance.setDisplayWidget(mainWindow.displayWidget());
+    instance.createDevice(device, QVkDeviceType::COMPUTE);
+    int retval = mainWindow.execute();
+    device.destroy();
+    instance.destroy();
     return retval;
 }

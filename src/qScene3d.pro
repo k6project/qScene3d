@@ -35,7 +35,8 @@ SOURCES += \
     scene.cpp \
     qvulkan.cpp \
     memory.cpp \
-    qvulkan.inl
+    qvulkan.inl \
+    window.cpp
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -45,4 +46,8 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 HEADERS += \
     scene.hpp \
     qvulkan.hpp \
-    memory.hpp
+    memory.hpp \
+    window.hpp
+
+FORMS += \
+    window.ui
