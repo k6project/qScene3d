@@ -20,7 +20,15 @@
       <property name="styleSheet">
        <string notr="true"/>
       </property>
-      <widget class="QWidget" name="toolBoxPage1" native="true">
+      <widget class="QWidget" name="toolBoxPage1">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>187</width>
+         <height>626</height>
+        </rect>
+       </property>
        <attribute name="label">
         <string>Context Info</string>
        </attribute>
@@ -146,6 +154,14 @@
        </layout>
       </widget>
       <widget class="QWidget" name="page">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>187</width>
+         <height>626</height>
+        </rect>
+       </property>
        <attribute name="label">
         <string>Miscellaneous</string>
        </attribute>
@@ -153,7 +169,10 @@
      </widget>
     </item>
     <item>
-     <widget class="QWidget" name="widget" native="true">
+     <widget class="SceneRenderer" name="renderer_" native="true">
+      <property name="contextMenuPolicy">
+       <enum>Qt::NoContextMenu</enum>
+      </property>
       <property name="autoFillBackground">
        <bool>false</bool>
       </property>
@@ -176,6 +195,14 @@
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>SceneRenderer</class>
+   <extends>QWidget</extends>
+   <header>renderer.hpp</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

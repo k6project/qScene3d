@@ -11,8 +11,6 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = qScene3d
 TEMPLATE = app
 
-win32:INCLUDEPATH += $$VULKAN_SDK
-macx:INCLUDEPATH += ../../vulkan/1.1.82/macOS/include
 win32:LIBS += user32.lib
 
 DEFINES += "USE_QT_INTTYPES=1"
@@ -36,7 +34,8 @@ SOURCES += \
     qvulkan.cpp \
     memory.cpp \
     qvulkan.inl \
-    window.cpp
+    window.cpp \
+    renderer.cpp
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -47,7 +46,8 @@ HEADERS += \
     scene.hpp \
     qvulkan.hpp \
     memory.hpp \
-    window.hpp
+    window.hpp \
+    renderer.hpp
 
 FORMS += \
     window.ui

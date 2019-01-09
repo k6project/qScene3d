@@ -12,10 +12,8 @@ struct QVkQueueLayout
     quint32 count[3];
     float priority[3];
     QPair<quint32, quint32> queues[3];
-    bool isSingleQueue() const
-    {
-        return (numFamilies == 1 && count[0] == 1);
-    }
+    bool isSingleQueue() const { return (numFamilies == 1 && count[0] == 1); }
+    quint32 graphicsQueueFamily() const { return family[0]; }
 };
 
 static const QVkQueueLayout gDefaultQueueLayout
@@ -23,27 +21,27 @@ static const QVkQueueLayout gDefaultQueueLayout
     1, {0, 0, 0}, {1, 0, 0}, {1.f, 0.f, 0.f}, {{0, 0}, {0, 0}, {0, 0}}
 };
 
-void QVkInstance::create()
+QVkInstance QVkInstance::gVkInstance;
+
+const QVkInstance& QVkInstance::get()
 {
-    if (layers_.isEmpty())
+    if (!gVkInstance.id_)
     {
-        layers_.append("VK_LAYER_LUNARG_standard_validation");
-    }
-    if (extensions_.empty())
-    {
-        extensions_.append("VK_EXT_debug_report");
-        extensions_.append("VK_KHR_win32_surface");
-        extensions_.append("VK_KHR_surface");
-    }
-    if (!library.isLoaded() || !instance)
-    {
-        if (!library.isLoaded())
+        if (gVkInstance.layers_.isEmpty())
         {
-            library.setFileName("vulkan-1");
-            Q_ASSERT(library.load());
-            vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(library.resolve("vkGetInstanceProcAddr"));
-            #define VULKAN_API_GOBAL(proc) vk##proc = reinterpret_cast<PFN_vk##proc>(vkGetInstanceProcAddr( nullptr, "vk" #proc )); Q_ASSERT( vk##proc );
-            #include "qvulkan.inl"
+            gVkInstance.layers_.append("VK_LAYER_LUNARG_standard_validation");
+        }
+        if (gVkInstance.extensions_.empty())
+        {
+            gVkInstance.extensions_.append("VK_EXT_debug_report");
+            gVkInstance.extensions_.append("VK_KHR_win32_surface");
+            gVkInstance.extensions_.append("VK_KHR_surface");
+        }
+        if (!gVkInstance.library_.isLoaded())
+        {
+            gVkInstance.library_.setFileName("vulkan-1");
+            Q_ASSERT(gVkInstance.library_.load());
+            gVkInstance.initInstanceFunctions();
         }
         VkApplicationInfo appInfo = {};
         appInfo.pApplicationName = "QScene3D Application";
@@ -53,135 +51,186 @@ void QVkInstance::create()
         VkInstanceCreateInfo info = {};
         info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         info.pApplicationInfo = &appInfo;
-        info.ppEnabledLayerNames = layers_.data();
-        info.enabledLayerCount = static_cast<quint32>(layers_.size());
-        info.ppEnabledExtensionNames = extensions_.data();
-        info.enabledExtensionCount = static_cast<quint32>(extensions_.size());
-        if (vkCreateInstance(&info, nullptr, &instance) == VK_SUCCESS)
+        info.ppEnabledLayerNames = gVkInstance.layers_.data();
+        info.enabledLayerCount = static_cast<quint32>(gVkInstance.layers_.size());
+        info.ppEnabledExtensionNames = gVkInstance.extensions_.data();
+        info.enabledExtensionCount = static_cast<quint32>(gVkInstance.extensions_.size());
+        if (gVkInstance.vkCreateInstance(&info, nullptr, &gVkInstance.id_) == VK_SUCCESS)
         {
-            #define VULKAN_API_INSTANCE(proc) vk##proc = reinterpret_cast<PFN_vk##proc>(vkGetInstanceProcAddr( instance, "vk" #proc )); Q_ASSERT( vk##proc );
-            #include "qvulkan.inl"
+            gVkInstance.initInstanceFunctions();
         }
         else
         {
             QMessageBox::critical(nullptr, "Vulkan error", "Failed to create Vulkan instance");
         }
     }
+    return gVkInstance;
 }
 
 void QVkInstance::destroy()
 {
-    if (surface_)
+    if (gVkInstance.id_)
     {
-        vkDestroySurfaceKHR(instance, surface_, nullptr);
+        gVkInstance.vkDestroyInstance(gVkInstance.id_, nullptr);
+        gVkInstance.id_ = nullptr;
     }
-    vkDestroyInstance(instance, nullptr);
-    library.unload();
+    gVkInstance.library_.unload();
 }
 
-void QVkInstance::setDisplayWidget(QWidget *widget)
+void QVkInstance::createSurface(QVkSurface& surface, QWidget* widget) const
 {
-    Q_ASSERT(instance);
+    Q_ASSERT(id_);
+#ifdef WIN32
     VkWin32SurfaceCreateInfoKHR info = {};
     info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     info.hwnd =  reinterpret_cast<HWND>(widget->winId());
     info.hinstance = GetModuleHandle(nullptr);
-    if (vkCreateWin32SurfaceKHR(instance, &info, nullptr, &surface_) != VK_SUCCESS)
+    if (vkCreateWin32SurfaceKHR(id_, &info, nullptr, &surface.id_) != VK_SUCCESS)
     {
         QMessageBox::critical(nullptr, "Vulkan error", "Failed to create Vulkan surface");
     }
+#endif
 }
 
-void QVkInstance::adapters(QVector<VkPhysicalDevice> &list) const
+void QVkInstance::destroySurface(QVkSurface& surface) const
 {
-    quint32 count = 0;
-    vkEnumeratePhysicalDevices(instance, &count, nullptr);
-    list.resize(static_cast<int>(count));
-    vkEnumeratePhysicalDevices(instance, &count, list.data());
+    vkDestroySurfaceKHR(id_, surface.id_, nullptr);
+    surface.id_ = nullptr;
 }
 
-void QVkInstance::adapterInfo(VkPhysicalDevice adapter,
-                              VkPhysicalDeviceProperties &properties,
-                              VkPhysicalDeviceFeatures& features,
-                              VkPhysicalDeviceMemoryProperties& memoryProperties) const
+void QVkInstance::createDevice(QVkDevice& device, const QVkSurface& surface, quint32 numExt, const char **ext) const
 {
-    vkGetPhysicalDeviceProperties(adapter, &properties);
-    vkGetPhysicalDeviceFeatures(adapter, &features);
-    vkGetPhysicalDeviceMemoryProperties(adapter, &memoryProperties);
-}
-
-bool QVkInstance::canPresent(VkPhysicalDevice adapter, quint32 queueFamily) const
-{
-    quint32 count = 0;
-    VkBool32 retval = VK_FALSE;
-    vkGetPhysicalDeviceQueueFamilyProperties(adapter, &count, nullptr);
-    if (count > 0)
+    quint32 phdCount = 0;
+    vkEnumeratePhysicalDevices(id_, &phdCount, nullptr);
+    QVarLengthArray<VkPhysicalDevice, 8> adapters(static_cast<int>(phdCount));
+    vkEnumeratePhysicalDevices(id_, &phdCount, adapters.data());
+    VkPhysicalDevice discrete = nullptr, integrated = nullptr;
+    for (VkPhysicalDevice adapter : adapters)
     {
-        vkGetPhysicalDeviceSurfaceSupportKHR(adapter, queueFamily, surface_, &retval);
+        quint32 numFamilies = 0, present = VK_FALSE;
+        vkGetPhysicalDeviceFeatures(adapter, &device.features_);
+        vkGetPhysicalDeviceProperties(adapter, &device.properties_);
+        vkGetPhysicalDeviceMemoryProperties(adapter, &device.memoryProperties_);
+        vkGetPhysicalDeviceQueueFamilyProperties(adapter, &numFamilies, nullptr);
+        QVarLengthArray<VkQueueFamilyProperties, 8> props(static_cast<int>(numFamilies));
+        vkGetPhysicalDeviceQueueFamilyProperties(adapter, &numFamilies, props.data());
+        const QVkQueueLayout& qLayout = queueLayout(device.properties_.vendorID, device.properties_.deviceID);
+        vkGetPhysicalDeviceSurfaceSupportKHR(adapter, qLayout.graphicsQueueFamily(), surface.id_, &present);
+        if (present == VK_TRUE)
+        {
+            if (device.properties_.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+            {
+                if (!discrete)
+                {
+                    discrete = adapter;
+                    integrated = nullptr;
+                    break;
+                }
+            }
+            else if (device.properties_.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
+            {
+                if (!integrated)
+                {
+                    integrated = adapter;
+                }
+            }
+        }
     }
-    return (retval == VK_TRUE);
-}
-
-void QVkInstance::createDevice(QVkDevice &device, QVkDeviceType type) const
-{
-    if (!device.selectAdapter(*this, type))
+    device.adapter_ = (discrete) ? discrete : integrated;
+    if (device.adapter_)
     {
-        QMessageBox::critical(nullptr, "Vulkan error", "No compatible graphics adapters installed");
-    }
-    else
-    {
-        quint32 queueOffs = 0, count = 0;
-        const QVkQueueLayout& queueLayout = device.queueLayout();
-        vkGetPhysicalDeviceQueueFamilyProperties(device.adapter_, &count, nullptr);
-        QVarLengthArray<VkQueueFamilyProperties, 8> props(static_cast<int>(count > 8 ? 8 : count));
-        vkGetPhysicalDeviceQueueFamilyProperties(device.adapter_, &count, props.data());
-        QVarLengthArray<VkDeviceQueueCreateInfo, 3> queueInfo(static_cast<int>(queueLayout.numFamilies));
+        quint32 queueOffs = 0;
+        const QVkQueueLayout& qLayout = queueLayout(device.properties_.vendorID, device.properties_.deviceID);
+        QVarLengthArray<VkDeviceQueueCreateInfo, 3> queueInfo(static_cast<int>(qLayout.numFamilies));
         for (int i = 0; i < queueInfo.size(); i++)
         {
             queueInfo[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             queueInfo[i].pNext = nullptr;
             queueInfo[i].flags = 0;
-            queueInfo[i].queueFamilyIndex = queueLayout.family[i];
-            queueInfo[i].queueCount = queueLayout.count[i];
-            queueInfo[i].pQueuePriorities = queueLayout.priority + queueOffs;
-            queueOffs += queueLayout.count[i];
+            queueInfo[i].queueFamilyIndex = qLayout.family[i];
+            queueInfo[i].queueCount = qLayout.count[i];
+            queueInfo[i].pQueuePriorities = qLayout.priority + queueOffs;
+            queueOffs += qLayout.count[i];
         }
         VkDeviceCreateInfo info = {};
         info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        info.queueCreateInfoCount = queueLayout.numFamilies;
+        info.queueCreateInfoCount = qLayout.numFamilies;
         info.pQueueCreateInfos = queueInfo.data();
-        if (type != QVkDeviceType::COMPUTE)
+        device.extensions_.append("VK_KHR_swapchain");
+        for (quint32 i = 0; i < numExt; i++)
         {
-            device.extensions_.append("VK_KHR_swapchain");
+            device.extensions_.append(ext[i]);
         }
         info.enabledExtensionCount = static_cast<quint32>(device.extensions_.size());
         info.ppEnabledExtensionNames = device.extensions_.data();
-        if (vkCreateDevice(device.adapter_, &info, nullptr, &device.device_) != VK_SUCCESS)
+        if (vkCreateDevice(device.adapter_, &info, nullptr, &device.id_) != VK_SUCCESS)
         {
             QMessageBox::critical(nullptr, "Vulkan error", "Failed to create Vulkan device");
             return;
         }
-        #define VULKAN_API_DEVICE(proc) device.vk##proc=reinterpret_cast<PFN_vk##proc>(vkGetDeviceProcAddr(device.device_,"vk" #proc));Q_ASSERT(device.vk##proc);
+        #define VULKAN_API_DEVICE(proc) device.vk##proc=reinterpret_cast<PFN_vk##proc>(vkGetDeviceProcAddr(device.id_,"vk" #proc));Q_ASSERT(device.vk##proc);
         #include "qvulkan.inl"
+    }
+    else
+    {
+        QMessageBox::critical(nullptr, "Vulkan error", "No compatible graphics adapters installed");
     }
 }
 
-const QVector<const char *> &QVkInstance::extensions() const
+void QVkInstance::destroyDevice(QVkDevice &device) const
+{
+    device.vkDestroyDevice(device.id_, nullptr);
+    device.id_ = nullptr;
+}
+
+const QVector<const char *>& QVkInstance::extensions() const
 {
     return extensions_;
 }
 
-const QVector<const char *> &QVkInstance::layers() const
+const QVector<const char *>& QVkInstance::layers() const
 {
     return layers_;
 }
 
-void QVkDevice::viewResized(int width, int height) const
+void QVkInstance::initInstanceFunctions()
 {
-    Q_ASSERT(!swapchain_);
+    if (id_)
+    {
+        #define VULKAN_API_INSTANCE(proc) vk##proc = reinterpret_cast<PFN_vk##proc>(vkGetInstanceProcAddr( id_, "vk" #proc )); Q_ASSERT( vk##proc );
+        #include "qvulkan.inl"
+    }
+    else
+    {
+        vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(library_.resolve("vkGetInstanceProcAddr"));
+        #define VULKAN_API_GLOBAL(proc) vk##proc = reinterpret_cast<PFN_vk##proc>(vkGetInstanceProcAddr( nullptr, "vk" #proc )); Q_ASSERT( vk##proc );
+        #include "qvulkan.inl"
+    }
 }
 
-void QVkDevice::createBuffer(QVkBuffer& buffer, QVkBufferType contentType, QVkBufferAccess accessType, quint32 size)
+const QVkQueueLayout& QVkInstance::queueLayout(quint32 /*vendorId*/, quint32 /*deviceId*/) const
+{
+    static const QVkQueueLayout defaultQueueLayout
+    {
+        1, {0, 0, 0}, {1, 0, 0}, {1.f, 0.f, 0.f}, {{0, 0}, {0, 0}, {0, 0}}
+    };
+    return defaultQueueLayout;
+}
+
+const VkPhysicalDeviceProperties& QVkDevice::properties() const
+{
+    return properties_;
+}
+
+const QVector<const char*>& QVkDevice::extensions() const
+{
+    return extensions_;
+}
+
+///////////////////////////////////////////////////////////////////
+
+
+/*void QVkDevice::createBuffer(QVkBuffer& buffer, QVkBufferType contentType, QVkBufferAccess accessType, quint32 size)
 {
     size = ALIGN_256(size);
     VkBufferCreateInfo info = {};
@@ -210,14 +259,14 @@ void QVkDevice::createBuffer(QVkBuffer& buffer, QVkBufferType contentType, QVkBu
             break;
     }
     info.size = size;
-    if (vkCreateBuffer(device_, &info, nullptr, &buffer.buffer_) == VK_SUCCESS)
+    if (vkCreateBuffer(id_, &info, nullptr, &buffer.buffer_) == VK_SUCCESS)
     {
         buffer.memory_ = nullptr;
         buffer.size_ = size;
         buffer.offset_ = 0;
         buffer.ptr_ = nullptr;
         VkMemoryRequirements memReqs = {};
-        vkGetBufferMemoryRequirements(device_, buffer.buffer_, &memReqs);
+        vkGetBufferMemoryRequirements(id_, buffer.buffer_, &memReqs);
         for (quint32 i = 0; i < memoryProperties_.memoryTypeCount; i++)
         {
             if ((memReqs.memoryTypeBits & (1 << i)) && ((memoryProperties_.memoryTypes[i].propertyFlags & pFlags) == pFlags))
@@ -226,9 +275,9 @@ void QVkDevice::createBuffer(QVkBuffer& buffer, QVkBufferType contentType, QVkBu
                 allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
                 allocInfo.allocationSize = memReqs.size;
                 allocInfo.memoryTypeIndex = i;
-                if (vkAllocateMemory(device_, &allocInfo, nullptr, &buffer.memory_) == VK_SUCCESS)
+                if (vkAllocateMemory(id_, &allocInfo, nullptr, &buffer.memory_) == VK_SUCCESS)
                 {
-                    vkBindBufferMemory(device_, buffer.buffer_, buffer.memory_, 0);
+                    vkBindBufferMemory(id_, buffer.buffer_, buffer.memory_, 0);
                 }
                 break;
             }
@@ -247,7 +296,7 @@ void QVkDevice::mapBuffer(QVkBuffer &buffer) const
             Q_ASSERT(buffer.parent_->ptr_ == nullptr);
             mem = buffer.parent_->memory_;
         }
-        if (vkMapMemory(device_, mem, buffer.offset_, buffer.size_, 0, &buffer.ptr_) == VK_SUCCESS)
+        if (vkMapMemory(id_, mem, buffer.offset_, buffer.size_, 0, &buffer.ptr_) == VK_SUCCESS)
         {
             if (!buffer.memory_)
             {
@@ -266,7 +315,7 @@ void QVkDevice::unmapBuffer(QVkBuffer &buffer) const
     if (buffer.ptr_)
     {
         VkDeviceMemory mem = (buffer.memory_) ? buffer.memory_ : buffer.parent_->memory_;
-        vkUnmapMemory(device_, mem);
+        vkUnmapMemory(id_, mem);
         buffer.ptr_ = nullptr;
         if (!buffer.memory_)
         {
@@ -280,78 +329,11 @@ void QVkDevice::destroyBuffer(QVkBuffer &buffer) const
     unmapBuffer(buffer);
     if (buffer.memory_)
     {
-        vkDestroyBuffer(device_, buffer.buffer_, nullptr);
-        vkFreeMemory(device_, buffer.memory_, nullptr);
+        vkDestroyBuffer(id_, buffer.buffer_, nullptr);
+        vkFreeMemory(id_, buffer.memory_, nullptr);
         buffer.memory_ = nullptr;
         buffer.buffer_ = nullptr;
     }
     buffer.size_ = 0;
     buffer.offset_ = 0;
-}
-
-void QVkDevice::destroy()
-{
-    vkDestroyDevice(device_, nullptr);
-}
-
-const VkPhysicalDeviceProperties &QVkDevice::properties() const
-{
-    return properties_;
-}
-
-const QVector<const char *> &QVkDevice::extensions() const
-{
-    return extensions_;
-}
-
-bool QVkDevice::selectAdapter(const QVkInstance &instance, QVkDeviceType type)
-{
-    VkPhysicalDevice discrete = nullptr;
-    VkPhysicalDevice integrated = nullptr;
-    QVector<VkPhysicalDevice> adapters;
-    instance.adapters(adapters);
-    if (adapters.isEmpty())
-    {
-        QMessageBox::critical(nullptr, "Vulkan error", "No compatible graphics adapters installed");
-    }
-    else for (VkPhysicalDevice adapter : adapters)
-    {
-        instance.adapterInfo(adapter, properties_, features_, memoryProperties_);
-        if (type == QVkDeviceType::GRAPHICS || type == QVkDeviceType::UNIVERSAL)
-        {
-            quint32 queueFamily = queueLayout().queues[0].first;
-            if (!instance.canPresent(adapter, queueFamily))
-            {
-                continue;
-            }
-        }
-        if (properties_.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-        {
-            if (!discrete)
-            {
-                discrete = adapter;
-                integrated = nullptr;
-                break;
-            }
-        }
-        else if (properties_.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
-        {
-            if (!integrated)
-            {
-                integrated = adapter;
-            }
-        }
-    }
-    adapter_ = (discrete) ? discrete : integrated;
-    return (adapter_ != nullptr);
-}
-
-const QVkQueueLayout &QVkDevice::queueLayout() const
-{
-    return gDefaultQueueLayout;
-}
-
-void *QVkBuffer::ptr()
-{
-    return ptr_;
-}
+}*/

@@ -1,10 +1,10 @@
-#ifndef VULKAN_API_GOBAL
-#define VULKAN_API_GOBAL(proc)
+#ifndef VULKAN_API_GLOBAL
+#define VULKAN_API_GLOBAL(proc)
 #endif
-VULKAN_API_GOBAL(CreateInstance)
-VULKAN_API_GOBAL(EnumerateInstanceLayerProperties)
-VULKAN_API_GOBAL(EnumerateInstanceExtensionProperties)
-#undef VULKAN_API_GOBAL
+VULKAN_API_GLOBAL(CreateInstance)
+VULKAN_API_GLOBAL(EnumerateInstanceLayerProperties)
+VULKAN_API_GLOBAL(EnumerateInstanceExtensionProperties)
+#undef VULKAN_API_GLOBAL
 
 #ifndef VULKAN_API_INSTANCE
 #define VULKAN_API_INSTANCE(proc)
