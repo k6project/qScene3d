@@ -4,6 +4,7 @@
 #include "qvulkan.hpp"
 
 #include <QEvent>
+#include <QThread>
 #include <QCloseEvent>
 
 struct SceneRendererData
@@ -12,6 +13,40 @@ struct SceneRendererData
     QVkDevice device;
     QVkSwapchain swapchain;
     QVkQueue cmdQueue;
+};
+
+/*
+RingQueue with atomics:
+enqueue()->
+    load tail (acquire)
+    next_tail = (tail + 1) mod MAX
+    do
+        load head(acquire)
+    while head == next_tail
+    <...init new queue item...>
+    store tail=next_tail (release)
+dequeue()->
+    load tail (acquire)
+    if (head != tail)
+        return result
+    return null
+*/
+
+class RenderThread : public QThread
+{
+    Q_OBJECT
+public:
+
+private:
+    const QVkDevice* device_;
+    virtual void run() override
+    {
+        while (true)
+        {
+            yieldCurrentThread();
+        }
+        device_->waitIdle();
+    }
 };
 
 SceneRenderer::SceneRenderer(QWidget *parent)

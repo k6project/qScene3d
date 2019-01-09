@@ -46,7 +46,7 @@ private:
     VkSwapchainKHR id_;
 };
 
-class QVkBuffer
+/*class QVkBuffer
 {
 private:
     friend class QVkDevice;
@@ -58,7 +58,7 @@ private:
     VkDeviceMemory memory_;
     quint32 offset_, size_;
     void* ptr_;
-};
+};*/
 
 class QVkInstance
 {
@@ -92,6 +92,7 @@ public:
     void mapBuffer(QVkBuffer& buffer) const;
     void unmapBuffer(QVkBuffer& buffer) const;
     void destroyBuffer(QVkBuffer& buffer) const;*/
+    void waitIdle() const;
     const VkPhysicalDeviceProperties& properties() const;
     const QVector<const char*>& extensions() const;
 protected:

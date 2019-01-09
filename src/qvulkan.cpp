@@ -217,6 +217,11 @@ const QVkQueueLayout& QVkInstance::queueLayout(quint32 /*vendorId*/, quint32 /*d
     return defaultQueueLayout;
 }
 
+void QVkDevice::waitIdle() const
+{
+    vkDeviceWaitIdle(id_);
+}
+
 const VkPhysicalDeviceProperties& QVkDevice::properties() const
 {
     return properties_;
