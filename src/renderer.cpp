@@ -7,14 +7,6 @@
 #include <QThread>
 #include <QCloseEvent>
 
-struct SceneRendererData
-{
-    QVkSurface surface;
-    QVkDevice device;
-    QVkSwapchain swapchain;
-    QVkQueue cmdQueue;
-};
-
 /*
 RingQueue with atomics:
 enqueue()->
@@ -32,22 +24,43 @@ dequeue()->
     return null
 */
 
-class RenderThread : public QThread
+class RenderThread : QThread
 {
-    Q_OBJECT
 public:
-
+    void startThread(const QVkDevice& device)
+    {
+        setObjectName("RenderThread");
+        device_ = &device;
+        keepRunning_ = true;
+        start();
+    }
+    void stopAndWait()
+    {
+        keepRunning_ = false;
+        wait();
+    }
 private:
     const QVkDevice* device_;
+    bool keepRunning_ = true;
     virtual void run() override
     {
-        while (true)
+        while (keepRunning_)
         {
             yieldCurrentThread();
         }
         device_->waitIdle();
     }
 };
+
+struct SceneRendererData
+{
+    RenderThread renderThread;
+    QVkSurface surface;
+    QVkDevice device;
+    QVkSwapchain swapchain;
+    QVkQueue cmdQueue;
+};
+
 
 SceneRenderer::SceneRenderer(QWidget *parent)
     : QWidget(parent)
@@ -71,12 +84,12 @@ void SceneRenderer::initialize()
     instance.createSurface(data_.surface, this);
     instance.createDevice(data_.device, data_.surface);
     //data_.device.createSwapchain(data_.swapchain, data_.surface);
-    //launch render and upload threads
+    data_.renderThread.startThread(data_.device);
 }
 
 void SceneRenderer::finalize()
 {
-    // stop render and upload threads
+    data_.renderThread.stopAndWait();
     const QVkInstance& instance = QVkInstance::get();
     instance.destroyDevice(data_.device);
     instance.destroySurface(data_.surface);
