@@ -27,7 +27,12 @@ enum class QVkBufferAccess
 class QVkSurface
 {
 private:
+    friend class QVkDevice;
     friend class QVkInstance;
+    void initSwapchainCreateInfo(VkSwapchainCreateInfoKHR& info) const;
+    VkSurfaceCapabilitiesKHR capabilities_;
+    QVector<VkSurfaceFormatKHR> formats_;
+    QVector<VkPresentModeKHR> presentModes_;
     VkSurfaceKHR id_ = nullptr;
 };
 
@@ -43,7 +48,8 @@ class QVkSwapchain
 {
 private:
     friend class QVkDevice;
-    VkSwapchainKHR id_;
+    quint32 size_ = 0, current_ = 0;
+    VkSwapchainKHR id_ = nullptr;
 };
 
 /*class QVkBuffer
@@ -88,15 +94,22 @@ private:
 class QVkDevice
 {
 public:
+    void createSwapchain(QVkSwapchain& swapchain, QVkSurface& surface);
     /*void createBuffer(QVkBuffer &buffer, QVkBufferType contentType, QVkBufferAccess accessType, quint32 size);
     void mapBuffer(QVkBuffer& buffer) const;
     void unmapBuffer(QVkBuffer& buffer) const;
     void destroyBuffer(QVkBuffer& buffer) const;*/
+    bool acquireNextImage(const QVkSwapchain& swapchain) const;
+    void queuePresent(const QVkSwapchain& swapchain, const QVkQueue& queue);
     void waitIdle() const;
     const VkPhysicalDeviceProperties& properties() const;
     const QVector<const char*>& extensions() const;
 protected:
     friend class QVkInstance;
+    void setSurfaceCapabilities(QVkSurface& surface) const;
+    PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
+    PFN_vkGetPhysicalDeviceSurfaceFormatsKHR vkGetPhysicalDeviceSurfaceFormatsKHR;
+    PFN_vkGetPhysicalDeviceSurfacePresentModesKHR vkGetPhysicalDeviceSurfacePresentModesKHR;
     #define VULKAN_API_DEVICE(proc) PFN_vk ## proc vk ## proc = nullptr;
     #include "qvulkan.inl"
     QVector<const char*> extensions_;

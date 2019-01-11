@@ -4,6 +4,7 @@
 #include "qvulkan.hpp"
 
 #include <QEvent>
+#include <QMutex>
 #include <QThread>
 #include <QCloseEvent>
 
@@ -27,10 +28,13 @@ dequeue()->
 class RenderThread : QThread
 {
 public:
-    void startThread(const QVkDevice& device)
+    RenderThread(const SceneRendererDevice& device)
+        : QThread()
+        , device_(device)
+    {}
+    void startThread()
     {
         setObjectName("RenderThread");
-        device_ = &device;
         keepRunning_ = true;
         start();
     }
@@ -39,38 +43,58 @@ public:
         keepRunning_ = false;
         wait();
     }
-private:
-    const QVkDevice* device_;
-    bool keepRunning_ = true;
-    virtual void run() override
+    void suspend()
     {
-        while (keepRunning_)
-        {
-            yieldCurrentThread();
-        }
-        device_->waitIdle();
+        suspendMutex_.lock();
     }
+    void resume()
+    {
+        suspendMutex_.unlock();
+    }
+private:
+    virtual void run() override;
+    const SceneRendererDevice& device_;
+    bool keepRunning_ = true;
+    QMutex suspendMutex_;
 };
 
-struct SceneRendererData
+class SceneRendererDevice : public QVkDevice
 {
-    RenderThread renderThread;
+public:
+    bool isReady = false;
     QVkSurface surface;
-    QVkDevice device;
     QVkSwapchain swapchain;
     QVkQueue cmdQueue;
+    RenderThread renderThread;
+    SceneRendererDevice() : renderThread(*this) {}
 };
 
+
+void RenderThread::run()
+{
+    while (keepRunning_)
+    {
+        suspendMutex_.lock();
+        if (device_.acquireNextImage(device_.swapchain))
+        {
+            //render
+            //device_.queuePresent(device_.swapchain,...);
+        }
+        suspendMutex_.unlock();
+        yieldCurrentThread();
+    }
+    device_.waitIdle();
+}
 
 SceneRenderer::SceneRenderer(QWidget *parent)
     : QWidget(parent)
-    , data_(*(new SceneRendererData))
+    , device_(*(new SceneRendererDevice))
 {
 }
 
 SceneRenderer::~SceneRenderer()
 {
-    delete &data_;
+    delete &device_;
 }
 
 QPaintEngine* SceneRenderer::paintEngine() const
@@ -81,18 +105,19 @@ QPaintEngine* SceneRenderer::paintEngine() const
 void SceneRenderer::initialize()
 {
     const QVkInstance& instance = QVkInstance::get();
-    instance.createSurface(data_.surface, this);
-    instance.createDevice(data_.device, data_.surface);
-    //data_.device.createSwapchain(data_.swapchain, data_.surface);
-    data_.renderThread.startThread(data_.device);
+    instance.createSurface(device_.surface, this);
+    instance.createDevice(device_, device_.surface);
+    device_.createSwapchain(device_.swapchain, device_.surface);
+    device_.isReady = true;
+    device_.renderThread.startThread();
 }
 
 void SceneRenderer::finalize()
 {
-    data_.renderThread.stopAndWait();
+    device_.renderThread.stopAndWait();
     const QVkInstance& instance = QVkInstance::get();
-    instance.destroyDevice(data_.device);
-    instance.destroySurface(data_.surface);
+    instance.destroyDevice(device_);
+    instance.destroySurface(device_.surface);
     instance.destroy();
 }
 
@@ -102,7 +127,13 @@ void SceneRenderer::paintEvent(QPaintEvent*)
 
 void SceneRenderer::resizeEvent(QResizeEvent*)
 {
-    //data_.device.createSwapchain(data_.swapchain, data_.surface);
+    if (device_.isReady)
+    {
+        device_.renderThread.suspend();
+        device_.waitIdle();
+        device_.createSwapchain(device_.swapchain, device_.surface);
+        device_.renderThread.resume();
+    }
 }
 
 bool SceneRenderer::event(QEvent* event)

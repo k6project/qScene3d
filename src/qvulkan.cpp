@@ -21,6 +21,31 @@ static const QVkQueueLayout gDefaultQueueLayout
     1, {0, 0, 0}, {1, 0, 0}, {1.f, 0.f, 0.f}, {{0, 0}, {0, 0}, {0, 0}}
 };
 
+void QVkSurface::initSwapchainCreateInfo(VkSwapchainCreateInfoKHR &info) const
+{
+    quint32 size = (capabilities_.minImageCount > 3) ? capabilities_.minImageCount : 3;
+    size = (size > capabilities_.maxImageCount) ? capabilities_.maxImageCount : size;
+    info.minImageCount = size;
+    info.imageFormat = VK_FORMAT_B8G8R8A8_UNORM;
+    info.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    for (const VkSurfaceFormatKHR& format : formats_)
+    {
+        if (format.colorSpace == info.imageColorSpace && format.format == VK_FORMAT_B8G8R8A8_SRGB)
+        {
+            info.imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
+            break;
+        }
+    }
+    info.imageExtent = capabilities_.currentExtent;
+    info.imageArrayLayers = 1;
+    info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    info.preTransform = capabilities_.currentTransform;
+    info.presentMode = (presentModes_.contains(VK_PRESENT_MODE_MAILBOX_KHR)) ? VK_PRESENT_MODE_MAILBOX_KHR : VK_PRESENT_MODE_FIFO_KHR;
+    info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    info.clipped = VK_TRUE;
+    info.surface = id_;
+}
+
 QVkInstance QVkInstance::gVkInstance;
 
 const QVkInstance& QVkInstance::get()
@@ -170,6 +195,10 @@ void QVkInstance::createDevice(QVkDevice& device, const QVkSurface& surface, qui
         }
         #define VULKAN_API_DEVICE(proc) device.vk##proc=reinterpret_cast<PFN_vk##proc>(vkGetDeviceProcAddr(device.id_,"vk" #proc));Q_ASSERT(device.vk##proc);
         #include "qvulkan.inl"
+        device.vkGetPhysicalDeviceSurfaceCapabilitiesKHR = vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
+        device.vkGetPhysicalDeviceSurfaceFormatsKHR = vkGetPhysicalDeviceSurfaceFormatsKHR;
+        device.vkGetPhysicalDeviceSurfacePresentModesKHR = vkGetPhysicalDeviceSurfacePresentModesKHR;
+        device.setSurfaceCapabilities(const_cast<QVkSurface&>(surface));
     }
     else
     {
@@ -217,6 +246,38 @@ const QVkQueueLayout& QVkInstance::queueLayout(quint32 /*vendorId*/, quint32 /*d
     return defaultQueueLayout;
 }
 
+void QVkDevice::createSwapchain(QVkSwapchain& swapchain, QVkSurface& surface)
+{
+    setSurfaceCapabilities(surface);
+    VkSwapchainCreateInfoKHR info = {};
+    info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    surface.initSwapchainCreateInfo(info);
+    // queues info
+
+    info.oldSwapchain = swapchain.id_;
+    //
+}
+
+bool QVkDevice::acquireNextImage(const QVkSwapchain &swapchain) const
+{
+    Q_ASSERT(id_ && swapchain.id_);
+    QVkSwapchain* borrow = const_cast<QVkSwapchain*>(&swapchain);
+    VkResult result = vkAcquireNextImageKHR(id_, swapchain.id_, UINT64_MAX, nullptr, nullptr, &borrow->current_);
+    return (result == VK_SUCCESS);
+}
+
+void QVkDevice::queuePresent(const QVkSwapchain &swapchain, const QVkQueue &queue)
+{
+    VkPresentInfoKHR info = {};
+    info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    //info.waitSemaphoreCount = 1;
+    //info.pWaitSemaphores = signalSemaphores;
+    info.swapchainCount = 1;
+    info.pSwapchains = &swapchain.id_;
+    info.pImageIndices = &swapchain.current_;
+    vkQueuePresentKHR(queue.id_, &info);
+}
+
 void QVkDevice::waitIdle() const
 {
     vkDeviceWaitIdle(id_);
@@ -230,6 +291,18 @@ const VkPhysicalDeviceProperties& QVkDevice::properties() const
 const QVector<const char*>& QVkDevice::extensions() const
 {
     return extensions_;
+}
+
+void QVkDevice::setSurfaceCapabilities(QVkSurface &surface) const
+{
+    quint32 numSurfaceFormat = 0, numPresentMode = 0;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(adapter_, surface.id_, &surface.capabilities_);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(adapter_, surface.id_, &numSurfaceFormat, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(adapter_, surface.id_, &numPresentMode, nullptr);
+    surface.formats_.resize(static_cast<int>(numSurfaceFormat));
+    surface.presentModes_.resize(static_cast<int>(numPresentMode));
+    vkGetPhysicalDeviceSurfaceFormatsKHR(adapter_, surface.id_, &numSurfaceFormat, surface.formats_.data());
+    vkGetPhysicalDeviceSurfacePresentModesKHR(adapter_, surface.id_, &numPresentMode, surface.presentModes_.data());
 }
 
 ///////////////////////////////////////////////////////////////////

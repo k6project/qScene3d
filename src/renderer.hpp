@@ -3,8 +3,7 @@
 #include <QWidget>
 
 class Scene;
-
-struct SceneRendererData;
+class SceneRendererDevice;
 
 /*
    Renderer provides renderScene() method to perform the main loop iteration (may run on any thread),
@@ -26,5 +25,5 @@ protected:
     virtual void resizeEvent(QResizeEvent* resizeEvent) override;
     virtual bool event(QEvent* event) override;
 private:
-    SceneRendererData& data_;
+    SceneRendererDevice& device_;
 };
