@@ -67,6 +67,7 @@ const QVkInstance& QVkInstance::get()
         if (gVkInstance.layers_.isEmpty())
         {
             gVkInstance.layers_.append("VK_LAYER_LUNARG_standard_validation");
+            gVkInstance.layers_.append("VK_LAYER_RENDERDOC_Capture");
         }
         if (gVkInstance.extensions_.empty())
         {
@@ -98,7 +99,10 @@ const QVkInstance& QVkInstance::get()
             VkDebugReportCallbackCreateInfoEXT dbgInfo = {};
             dbgInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
             dbgInfo.pfnCallback = &gVkDebugFunction;
-            gVkInstance.vkCreateDebugReportCallbackEXT(gVkInstance.id_, &dbgInfo, nullptr, &gVkInstance.debug_);
+            if (gVkInstance.vkCreateDebugReportCallbackEXT(gVkInstance.id_, &dbgInfo, nullptr, &gVkInstance.debug_) != VK_SUCCESS)
+            {
+                QMessageBox::critical(nullptr, "Vulkan error", "Failed to set debug callback");
+            }
         }
         else
         {
@@ -293,16 +297,14 @@ bool QVkDevice::acquireNextImage(const QVkSwapchain &swapchain) const
     return (result == VK_SUCCESS);
 }
 
-void QVkDevice::queuePresent(const QVkSwapchain &swapchain, const QVkQueue &queue)
+void QVkDevice::queuePresent(const QVkSwapchain &swapchain) const
 {
     VkPresentInfoKHR info = {};
     info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    //info.waitSemaphoreCount = 1;
-    //info.pWaitSemaphores = signalSemaphores;
     info.swapchainCount = 1;
     info.pSwapchains = &swapchain.id_;
     info.pImageIndices = &swapchain.current_;
-    vkQueuePresentKHR(queue.id_, &info);
+    vkQueuePresentKHR(drawQueue_.id_, &info);
 }
 
 void QVkDevice::waitIdle() const

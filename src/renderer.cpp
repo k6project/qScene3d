@@ -77,8 +77,7 @@ void RenderThread::run()
         suspendMutex_.lock();
         if (device_.acquireNextImage(device_.swapchain))
         {
-            //render
-            //device_.queuePresent(device_.swapchain,...);
+            device_.queuePresent(device_.swapchain);
         }
         suspendMutex_.unlock();
         yieldCurrentThread();

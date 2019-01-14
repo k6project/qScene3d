@@ -128,7 +128,7 @@ public:
     void unmapBuffer(QVkBuffer& buffer) const;
     void destroyBuffer(QVkBuffer& buffer) const;*/
     bool acquireNextImage(const QVkSwapchain& swapchain) const;
-    void queuePresent(const QVkSwapchain& swapchain, const QVkQueue& queue);
+    void queuePresent(const QVkSwapchain& swapchain) const;
     void waitIdle() const;
     const VkPhysicalDeviceProperties& properties() const;
     const QVector<const char*>& extensions() const;
