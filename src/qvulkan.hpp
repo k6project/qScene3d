@@ -44,12 +44,28 @@ private:
     VkQueue id_ = nullptr;
 };
 
+class QVkImage
+{
+private:
+    friend class QVkDevice;
+    friend class QVkSwapchain;
+    VkImageUsageFlagBits usage_;
+    VkSampleCountFlagBits samples_;
+    VkFormat format_;
+    VkImageView view_;
+    VkImage id_;
+};
+
 class QVkSwapchain
 {
+public:
+    const QVkImage& current() const;
 private:
     friend class QVkDevice;
     quint32 size_ = 0, current_ = 0;
     VkSwapchainKHR id_ = nullptr;
+    QVector<VkImage> image_;
+    QVkImage proxy_;
 };
 
 /*class QVkBuffer
@@ -65,6 +81,17 @@ private:
     quint32 offset_, size_;
     void* ptr_;
 };*/
+
+/*
+device.createRenderPass(quint32 numSubpass, quint32 numColor)
+    .addColorBuffer(swapchain.current())
+        .attachmentOp(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE)
+        .layout(VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+    .addSubPass(numColor, numInput, numResolve)
+        .colorAttachment()
+        .inputAttachment()
+        .resolveAttachment(index)
+*/
 
 class QVkInstance
 {
@@ -86,6 +113,7 @@ private:
     #define VULKAN_API_INSTANCE(proc) PFN_vk ## proc vk ## proc = nullptr;
     #include "qvulkan.inl"
     PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = nullptr;
+    VkDebugReportCallbackEXT debug_ = nullptr;
     QVector<const char*> layers_, extensions_;
     VkInstance id_ = nullptr;
     QLibrary library_;
@@ -106,6 +134,7 @@ public:
     const QVector<const char*>& extensions() const;
 protected:
     friend class QVkInstance;
+    void setQueues(const QVkQueueLayout& qLayout);
     void setSurfaceCapabilities(QVkSurface& surface) const;
     PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
     PFN_vkGetPhysicalDeviceSurfaceFormatsKHR vkGetPhysicalDeviceSurfaceFormatsKHR;
@@ -118,4 +147,6 @@ protected:
     VkPhysicalDeviceMemoryProperties memoryProperties_;
     VkPhysicalDevice adapter_;
     VkDevice id_ = nullptr;
+    QVkQueue drawQueue_;
+    QVkQueue copyQueue_;
 };

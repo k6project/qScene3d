@@ -1,5 +1,6 @@
 #include "qvulkan.hpp"
 
+#include <QDebug>
 #include <QMessageBox>
 
 #define ALIGN_(v,b) ((v)?(((v-1)/b+1)*b):(v))
@@ -8,17 +9,15 @@
 struct QVkQueueLayout
 {
     quint32 numFamilies;
-    quint32 family[3];
-    quint32 count[3];
-    float priority[3];
-    QPair<quint32, quint32> queues[3];
+    quint32 family[2];
+    quint32 count[2];
+    float priority[2];
+    QPair<quint32, quint32> queues[2];
     bool isSingleQueue() const { return (numFamilies == 1 && count[0] == 1); }
-    quint32 graphicsQueueFamily() const { return family[0]; }
-};
-
-static const QVkQueueLayout gDefaultQueueLayout
-{
-    1, {0, 0, 0}, {1, 0, 0}, {1.f, 0.f, 0.f}, {{0, 0}, {0, 0}, {0, 0}}
+    quint32 graphicsQueueFamily() const { return queues[0].first; }
+    quint32 graphicsQueueIndex() const { return queues[0].second; }
+    quint32 transferQueueFamily() const { return queues[1].first; }
+    quint32 transferQueueIndex() const { return queues[1].second; }
 };
 
 void QVkSurface::initSwapchainCreateInfo(VkSwapchainCreateInfoKHR &info) const
@@ -44,6 +43,19 @@ void QVkSurface::initSwapchainCreateInfo(VkSwapchainCreateInfoKHR &info) const
     info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     info.clipped = VK_TRUE;
     info.surface = id_;
+}
+
+static VkBool32 gVkDebugFunction(
+    VkFlags /*msgFlags*/,
+    VkDebugReportObjectTypeEXT /*objType*/,
+    uint64_t /*srcObject*/,
+    size_t /*location*/,
+    int32_t /*msgCode*/,
+    const char *pLayerPrefix,
+    const char *pMsg, void*)
+{
+    qDebug() << pLayerPrefix << pMsg;
+    return VK_FALSE;
 }
 
 QVkInstance QVkInstance::gVkInstance;
@@ -83,6 +95,10 @@ const QVkInstance& QVkInstance::get()
         if (gVkInstance.vkCreateInstance(&info, nullptr, &gVkInstance.id_) == VK_SUCCESS)
         {
             gVkInstance.initInstanceFunctions();
+            VkDebugReportCallbackCreateInfoEXT dbgInfo = {};
+            dbgInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+            dbgInfo.pfnCallback = &gVkDebugFunction;
+            gVkInstance.vkCreateDebugReportCallbackEXT(gVkInstance.id_, &dbgInfo, nullptr, &gVkInstance.debug_);
         }
         else
         {
@@ -96,6 +112,7 @@ void QVkInstance::destroy()
 {
     if (gVkInstance.id_)
     {
+        gVkInstance.vkDestroyDebugReportCallbackEXT(gVkInstance.id_, gVkInstance.debug_, nullptr);
         gVkInstance.vkDestroyInstance(gVkInstance.id_, nullptr);
         gVkInstance.id_ = nullptr;
     }
@@ -199,6 +216,7 @@ void QVkInstance::createDevice(QVkDevice& device, const QVkSurface& surface, qui
         device.vkGetPhysicalDeviceSurfaceFormatsKHR = vkGetPhysicalDeviceSurfaceFormatsKHR;
         device.vkGetPhysicalDeviceSurfacePresentModesKHR = vkGetPhysicalDeviceSurfacePresentModesKHR;
         device.setSurfaceCapabilities(const_cast<QVkSurface&>(surface));
+        device.setQueues(qLayout);
     }
     else
     {
@@ -241,7 +259,7 @@ const QVkQueueLayout& QVkInstance::queueLayout(quint32 /*vendorId*/, quint32 /*d
 {
     static const QVkQueueLayout defaultQueueLayout
     {
-        1, {0, 0, 0}, {1, 0, 0}, {1.f, 0.f, 0.f}, {{0, 0}, {0, 0}, {0, 0}}
+        1, {0, 0}, {1, 0}, {1.f, 0.f}, {{0, 0}, {0, 0}}
     };
     return defaultQueueLayout;
 }
@@ -252,10 +270,19 @@ void QVkDevice::createSwapchain(QVkSwapchain& swapchain, QVkSurface& surface)
     VkSwapchainCreateInfoKHR info = {};
     info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     surface.initSwapchainCreateInfo(info);
-    // queues info
-
+    info.pQueueFamilyIndices = &drawQueue_.family_;
+    info.queueFamilyIndexCount = 1;
     info.oldSwapchain = swapchain.id_;
-    //
+    if (vkCreateSwapchainKHR(id_, &info, nullptr, &swapchain.id_) == VK_SUCCESS)
+    {
+        vkGetSwapchainImagesKHR(id_, swapchain.id_, &swapchain.size_, nullptr);
+        swapchain.image_.resize(static_cast<int>(swapchain.size_));
+        vkGetSwapchainImagesKHR(id_, swapchain.id_, &swapchain.size_, swapchain.image_.data());
+    }
+    else
+    {
+        QMessageBox::critical(nullptr, "Vulkan error", "Failed to create swapchain");
+    }
 }
 
 bool QVkDevice::acquireNextImage(const QVkSwapchain &swapchain) const
@@ -291,6 +318,23 @@ const VkPhysicalDeviceProperties& QVkDevice::properties() const
 const QVector<const char*>& QVkDevice::extensions() const
 {
     return extensions_;
+}
+
+void QVkDevice::setQueues(const QVkQueueLayout &qLayout)
+{
+    drawQueue_.family_ = qLayout.graphicsQueueFamily();
+    drawQueue_.index_ = qLayout.graphicsQueueIndex();
+    copyQueue_.family_ = qLayout.transferQueueFamily();
+    copyQueue_.index_ = qLayout.transferQueueIndex();
+    vkGetDeviceQueue(id_, drawQueue_.family_, drawQueue_.index_, &drawQueue_.id_);
+    if (!qLayout.isSingleQueue())
+    {
+        vkGetDeviceQueue(id_, copyQueue_.family_, copyQueue_.index_, &copyQueue_.id_);
+    }
+    else
+    {
+        copyQueue_.id_ = drawQueue_.id_;
+    }
 }
 
 void QVkDevice::setSurfaceCapabilities(QVkSurface &surface) const
@@ -415,3 +459,8 @@ void QVkDevice::destroyBuffer(QVkBuffer &buffer) const
     buffer.size_ = 0;
     buffer.offset_ = 0;
 }*/
+
+const QVkImage &QVkSwapchain::current() const
+{
+    return proxy_;
+}
