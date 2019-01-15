@@ -47,7 +47,8 @@ HEADERS += \
     qvulkan.hpp \
     memory.hpp \
     window.hpp \
-    renderer.hpp
+    renderer.hpp \
+    qvkbuilder.hpp
 
 FORMS += \
     window.ui

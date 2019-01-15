@@ -108,6 +108,11 @@ void SceneRenderer::initialize()
     instance.createDevice(device_, device_.surface);
     device_.createSwapchain(device_.swapchain, device_.surface);
     device_.isReady = true;
+    {
+        using namespace QVkBuilder;
+        RenderPass<1, SubPass<1>> basePass;
+    }
+
     device_.renderThread.startThread();
 }
 

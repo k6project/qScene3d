@@ -12,6 +12,8 @@ struct QVkQueueLayout;
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
+#include "qvkbuilder.hpp"
+
 enum class QVkBufferType
 {
     GEOMETRY,
@@ -64,8 +66,16 @@ private:
     friend class QVkDevice;
     quint32 size_ = 0, current_ = 0;
     VkSwapchainKHR id_ = nullptr;
+    QVector<VkImageView> view_;
     QVector<VkImage> image_;
     QVkImage proxy_;
+};
+
+class QVkRenderPass
+{
+private:
+    friend class QVkDevice;
+    VkRenderPass id_;
 };
 
 /*class QVkBuffer

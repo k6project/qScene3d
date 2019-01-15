@@ -281,7 +281,33 @@ void QVkDevice::createSwapchain(QVkSwapchain& swapchain, QVkSurface& surface)
     {
         vkGetSwapchainImagesKHR(id_, swapchain.id_, &swapchain.size_, nullptr);
         swapchain.image_.resize(static_cast<int>(swapchain.size_));
+        swapchain.view_.resize(static_cast<int>(swapchain.size_));
         vkGetSwapchainImagesKHR(id_, swapchain.id_, &swapchain.size_, swapchain.image_.data());
+        swapchain.proxy_.usage_ = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        swapchain.proxy_.format_ = info.imageFormat;
+        swapchain.proxy_.samples_ = VK_SAMPLE_COUNT_1_BIT;
+        for (int i = 0; i < static_cast<int>(swapchain.size_); i++)
+        {
+            VkImageViewCreateInfo createInfo = {};
+            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            createInfo.image = swapchain.image_[i];
+            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            createInfo.format = info.imageFormat;
+            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            createInfo.subresourceRange.baseMipLevel = 0;
+            createInfo.subresourceRange.levelCount = 1;
+            createInfo.subresourceRange.baseArrayLayer = 0;
+            createInfo.subresourceRange.layerCount = 1;
+            if (vkCreateImageView(id_, &createInfo, nullptr, &swapchain.view_[i]) != VK_SUCCESS)
+            {
+                QMessageBox::critical(nullptr, "Vulkan error", "Failed to create image view");
+                break;
+            }
+        }
     }
     else
     {
@@ -294,6 +320,11 @@ bool QVkDevice::acquireNextImage(const QVkSwapchain &swapchain) const
     Q_ASSERT(id_ && swapchain.id_);
     QVkSwapchain* borrow = const_cast<QVkSwapchain*>(&swapchain);
     VkResult result = vkAcquireNextImageKHR(id_, swapchain.id_, UINT64_MAX, nullptr, nullptr, &borrow->current_);
+    if (result == VK_SUCCESS)
+    {
+        borrow->proxy_.view_ = swapchain.view_[static_cast<int>(borrow->current_)];
+        borrow->proxy_.id_ = swapchain.image_[static_cast<int>(borrow->current_)];
+    }
     return (result == VK_SUCCESS);
 }
 
